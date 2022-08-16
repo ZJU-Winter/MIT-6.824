@@ -7,14 +7,17 @@ package main
 // go build -buildmode=plugin mtiming.go
 //
 
-import "6.824/mr"
-import "strings"
-import "fmt"
-import "os"
-import "syscall"
-import "time"
-import "sort"
-import "io/ioutil"
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"sort"
+	"strings"
+	"syscall"
+	"time"
+
+	"6.824/mr"
+)
 
 func nparallel(phase string) int {
 	// create a file so that other workers will see that
@@ -55,7 +58,7 @@ func nparallel(phase string) int {
 
 	err = os.Remove(myfilename)
 	if err != nil {
-		panic(err)
+		err.Error()
 	}
 
 	return ret

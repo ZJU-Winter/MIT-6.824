@@ -30,8 +30,9 @@ type AskForTaskArgs struct {
 
 type AskForTaskReply struct {
 	Task        Task
-	NReduceTask int // total number of reduce tasks
-	NMapTask    int // total number of map tasks
+	NReduceTask int  // total number of reduce tasks
+	NMapTask    int  // total number of map tasks
+	Job         bool // Has a Job for worker
 }
 type JobFinishArgs struct {
 	Task Task

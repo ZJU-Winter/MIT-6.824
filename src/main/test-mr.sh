@@ -95,6 +95,7 @@ else
   echo '---' wc output is not the same as mr-correct-wc.txt
   echo '---' wc test: FAIL
   failed_any=1
+  exit
 fi
 
 # wait for remaining workers and coordinator to exit.
@@ -175,10 +176,11 @@ $TIMEOUT ../mrworker ../../mrapps/rtiming.so
 NT=`cat mr-out* | grep '^[a-z] 2' | wc -l | sed 's/ //g'`
 if [ "$NT" -lt "2" ]
 then
-  echo '---' too few parallel reduces.
+  echo '---' saw "$NT" parallel reduces, too fewer
   echo '---' reduce parallelism test: FAIL
   failed_any=1
 else
+  echo '---' saw "$NT" parallel reduces
   echo '---' reduce parallelism test: PASS
 fi
 

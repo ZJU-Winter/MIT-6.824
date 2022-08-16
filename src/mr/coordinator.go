@@ -8,6 +8,7 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"time"
 )
 
 type TaskState int
@@ -46,8 +47,10 @@ func (c *Coordinator) Task(args *AskForTaskArgs, reply *AskForTaskReply) error {
 			reply.Task = task
 			reply.NReduceTask = c.nReduceTask
 			reply.NMapTask = c.nMapTask
+			reply.Job = true
 			c.mapTasks[task] = Running
-			fmt.Printf("give a map task on %v\n", task.Filename)
+			go c.waitSeconds(task, 10)
+			//fmt.Printf("give a map task on %v\n", task.Filename)
 			break
 		}
 	} else if c.nextReduce != c.nReduceTask {
@@ -58,8 +61,10 @@ func (c *Coordinator) Task(args *AskForTaskArgs, reply *AskForTaskReply) error {
 			reply.Task = task
 			reply.NReduceTask = c.nReduceTask
 			reply.NMapTask = c.nMapTask
+			reply.Job = true
 			c.reduceTasks[task] = Running
-			fmt.Printf("give #%v reduce task\n", task.Tasknum)
+			go c.waitSeconds(task, 10)
+			//fmt.Printf("give #%v reduce task\n", task.Tasknum)
 			break
 		}
 	} else {
@@ -79,14 +84,16 @@ func (c *Coordinator) JobDone(args *JobFinishArgs, reply *JobFinishReply) error 
 		if c.nextMap > c.nMapTask {
 			log.Fatalln("map tasks done more than total number")
 		}
-		fmt.Printf("#%v map task done\n", args.Task.Tasknum)
+		//fmt.Printf("co:#%v map task done\n", args.Task.Tasknum)
+		//fmt.Printf("nextMap:%v\n", c.nextMap)
 	} else {
 		c.reduceTasks[args.Task] = Done
 		c.nextReduce += 1
 		if c.nextReduce > c.nReduceTask {
 			log.Fatalln("reduce tasks done more than total number")
 		}
-		fmt.Printf("#%v reduce task done\n", args.Task.Tasknum)
+		//fmt.Printf("co:#%v reduce task done\n", args.Task.Tasknum)
+		//fmt.Printf("nextReduce:%v\n", c.nextReduce)
 	}
 	return nil
 }
@@ -98,10 +105,10 @@ func (c *Coordinator) JobFail(args *JobFinishArgs, reply *JobFinishReply) error 
 	defer c.lock.Unlock()
 	if args.Task.Map {
 		c.mapTasks[args.Task] = NotYet
-		fmt.Printf("#%v map task failed", args.Task.Tasknum)
+		//fmt.Printf("#%v map task failed", args.Task.Tasknum)
 	} else {
 		c.reduceTasks[args.Task] = NotYet
-		fmt.Printf("#%v reduce task failed", args.Task.Tasknum)
+		//fmt.Printf("#%v reduce task failed", args.Task.Tasknum)
 	}
 	return nil
 }
@@ -126,7 +133,7 @@ func (c *Coordinator) server() {
 	if e != nil {
 		log.Fatal("listen error:", e)
 	} else {
-		fmt.Println("cooridinator listening")
+		//fmt.Println("cooridinator listening")
 	}
 	go http.Serve(l, nil)
 }
@@ -171,6 +178,21 @@ func (c *Coordinator) printReduceTasks() {
 		case 2:
 			fmt.Printf("#%v reduce task: %v is Done\n", task.Tasknum, task.Filename)
 		}
+	}
+}
+
+// WaitTenSeconds
+// a go routine waiting for worker
+func (c *Coordinator) waitSeconds(task Task, seconds int) {
+	time.Sleep(time.Duration(seconds) * time.Second)
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if task.Map && c.mapTasks[task] == Running {
+		c.mapTasks[task] = NotYet
+		//fmt.Println("too slow")
+	} else if !task.Map && c.reduceTasks[task] == Running {
+		c.reduceTasks[task] = NotYet
+		//fmt.Println("too slow")
 	}
 }
 

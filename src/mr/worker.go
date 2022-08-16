@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/rpc"
 	"os"
@@ -42,7 +42,7 @@ func Worker(mapf func(string, string) []KeyValue, reducef func(string, []string)
 
 	for {
 		AskForTask(mapf, reducef)
-		time.Sleep(2 * time.Second)
+		time.Sleep(time.Duration(2) * time.Second)
 	}
 }
 
@@ -54,8 +54,12 @@ func AskForTask(mapf func(string, string) []KeyValue, reducef func(string, []str
 
 	rst := call("Coordinator.Task", &args, &reply)
 	if !rst {
-		fmt.Println("call failed")
+		//fmt.Println("call coordinator failed. I am done")
 		os.Exit(0)
+	}
+	if !reply.Job {
+		//fmt.Println("currently no job for me.")
+		return
 	}
 
 	if reply.Task.Map {
@@ -77,7 +81,7 @@ func AskForTask(mapf func(string, string) []KeyValue, reducef func(string, []str
 				call("Coordinator.JobFail", &jobargs, &jobreply)
 			}
 		}()
-	} else {
+	} else if !reply.Task.Map {
 		go func() {
 			err := Reduce(&reply, reducef)
 			jobargs := JobFinishArgs{reply.Task}
@@ -96,8 +100,8 @@ func AskForTask(mapf func(string, string) []KeyValue, reducef func(string, []str
 func Map(reply *AskForTaskReply, mapf func(string, string) []KeyValue) error {
 	filename := reply.Task.Filename
 	n := reply.NReduceTask
-	fmt.Printf("Map task on %v start\n", filename)
-	defer fmt.Printf("Map task on %v done\n", filename)
+	//fmt.Printf("worker:map task on %v start\n", filename)
+	//defer fmt.Printf("worker:map task on %v done\n", filename)
 	maprst := make([][]KeyValue, n)
 	for i := range maprst {
 		maprst[i] = []KeyValue{}
@@ -106,11 +110,12 @@ func Map(reply *AskForTaskReply, mapf func(string, string) []KeyValue) error {
 	if err != nil {
 		log.Fatalf("cannot open %v\n", filename)
 	}
-	content, err := ioutil.ReadAll(file)
+	content, err := io.ReadAll(file)
 	if err != nil {
 		log.Fatalf("cannot read %v\n", filename)
 	}
-	defer file.Close()
+	file.Close()
+
 	kva := mapf(filename, string(content))
 
 	for _, kv := range kva {
@@ -123,9 +128,9 @@ func Map(reply *AskForTaskReply, mapf func(string, string) []KeyValue) error {
 		intermediateFileName := fmt.Sprintf("mr-temp-%v-%v", tasknum, i)
 		ofile, err := os.Create(intermediateFileName)
 		if err != nil {
-			log.Fatalf("create file %v failed\n", intermediateFileName)
+			log.Fatalf("create temp file %v failed\n", intermediateFileName)
 		}
-		defer ofile.Close()
+		ofile.Close()
 		write(maprst[i], intermediateFileName)
 	}
 	return nil
@@ -138,8 +143,8 @@ func Reduce(reply *AskForTaskReply, reducef func(string, []string) string) error
 	tasknum := reply.Task.Tasknum
 	n := reply.NMapTask // total number of map tasks
 	//n := 1
-	fmt.Printf("#%v reduce task start\n", tasknum)
-	defer fmt.Printf("#%v reduce task done\n", tasknum)
+	//fmt.Printf("worker:#%v reduce task start\n", tasknum)
+	//defer fmt.Printf("worker:#%v reduce task done\n", tasknum)
 
 	data := []KeyValue{}
 	prev := []KeyValue{}
@@ -176,7 +181,7 @@ func Reduce(reply *AskForTaskReply, reducef func(string, []string) string) error
 // write key/value pairs in JSON format to an open file
 func write(content []KeyValue, filename string) error {
 	data, _ := json.Marshal(content)
-	err := ioutil.WriteFile(filename, data, 0644)
+	err := os.WriteFile(filename, data, 0644)
 	if err != nil {
 		log.Fatalf("Write file %v failed\n", filename)
 	}
@@ -186,7 +191,7 @@ func write(content []KeyValue, filename string) error {
 // read
 // read key/value pairs in JSON format from an open file
 func read(filename string, content *[]KeyValue) error {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		log.Fatalf("Read file %v failed\n", filename)
 	}
@@ -230,15 +235,12 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 	sockname := coordinatorSock()
 	c, err := rpc.DialHTTP("unix", sockname)
 	if err != nil {
-		log.Fatal("dialing:", err)
+		return false
+		//log.Fatal("dialing:", err)
 	}
 	defer c.Close()
-
 	err = c.Call(rpcname, args, reply)
-	if err == nil {
-		return true
-	}
-
-	fmt.Println(err)
-	return false
+	return err == nil
+	//fmt.Println(err)
+	//return false
 }

@@ -7,19 +7,21 @@ package main
 // go build -buildmode=plugin rtiming.go
 //
 
-import "6.824/mr"
-import "fmt"
-import "os"
-import "syscall"
-import "time"
-import "io/ioutil"
+import (
+	"fmt"
+	"os"
+	"syscall"
+	"time"
+
+	"6.824/mr"
+)
 
 func nparallel(phase string) int {
 	// create a file so that other workers will see that
 	// we're running at the same time as them.
 	pid := os.Getpid()
 	myfilename := fmt.Sprintf("mr-worker-%s-%d", phase, pid)
-	err := ioutil.WriteFile(myfilename, []byte("x"), 0666)
+	err := os.WriteFile(myfilename, []byte("x"), 0666)
 	if err != nil {
 		panic(err)
 	}
@@ -53,7 +55,7 @@ func nparallel(phase string) int {
 
 	err = os.Remove(myfilename)
 	if err != nil {
-		panic(err)
+		err.Error()
 	}
 
 	return ret
