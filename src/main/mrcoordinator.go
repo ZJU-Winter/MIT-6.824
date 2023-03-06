@@ -29,5 +29,5 @@ func main() {
 	}
 
 	time.Sleep(time.Second)
-	fmt.Println("MapReduce Tasks All Done.")
+	//fmt.Println("MapReduce Tasks All Done.")
 }

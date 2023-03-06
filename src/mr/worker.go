@@ -27,8 +27,7 @@ func (a ByKey) Len() int           { return len(a) }
 func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
-// use ihash(key) % NReduce to choose the reduce
-// task number for each KeyValue emitted by Map.
+// use ihash(key) % NReduce to choose a 'reduce' task number for each KeyValue emitted by Map.
 func ihash(key string) int {
 	h := fnv.New32a()
 	h.Write([]byte(key))
@@ -65,8 +64,8 @@ func AskForTask(mapf func(string, string) []KeyValue, reducef func(string, []str
 	if reply.Task.Map {
 		go func() {
 			err := Map(&reply, mapf)
-			jobargs := JobFinishArgs{reply.Task}
-			jobreply := JobFinishReply{}
+			jobArgs := JobFinishArgs{reply.Task}
+			jobReply := JobFinishReply{}
 			if err == nil {
 				for i := 0; i < reply.NReduceTask; i += 1 {
 					temp := fmt.Sprintf("mr-temp-%v-%v", reply.Task.Tasknum, i)
@@ -76,9 +75,9 @@ func AskForTask(mapf func(string, string) []KeyValue, reducef func(string, []str
 						log.Fatal("rename file failed\n")
 					}
 				}
-				call("Coordinator.JobDone", &jobargs, &jobreply)
+				call("Coordinator.JobDone", &jobArgs, &jobReply)
 			} else {
-				call("Coordinator.JobFail", &jobargs, &jobreply)
+				call("Coordinator.JobFail", &jobArgs, &jobReply)
 			}
 		}()
 	} else if !reply.Task.Map {
@@ -188,7 +187,6 @@ func write(content []KeyValue, filename string) error {
 	return nil
 }
 
-// read
 // read key/value pairs in JSON format from an open file
 func read(filename string, content *[]KeyValue) error {
 	data, err := os.ReadFile(filename)
